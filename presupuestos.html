@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Flujo a 12 Meses</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --border-color: #333;
+            --accent-color: #bb86fc;
+            --danger-color: #cf6679;
+            --success-color: #03dac6;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        h1, h2 { color: var(--accent-color); font-weight: normal; }
+        .container { max-width: 1200px; margin: auto; }
+        .panel {
+            background-color: var(--panel-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 200px;
+        }
+        label { margin-bottom: 5px; font-size: 0.9em; color: #aaa; }
+        input, select, button {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: 1em;
+        }
+        button {
+            background-color: var(--accent-color);
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        button.delete-btn {
+            background-color: var(--danger-color);
+            color: #000;
+            padding: 5px 10px;
+            font-size: 0.8em;
+        }
+        
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 2800px; /* Espacio para las 24 columnas */
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            text-align: right;
+            font-size: 0.95em;
+        }
+        /* Congelar la primera columna */
+        th:first-child, td:first-child {
+            position: sticky;
+            left: 0;
+            background-color: var(--panel-bg);
+            z-index: 2;
+            border-right: 2px solid var(--accent-color);
+            min-width: 220px;
+            text-align: left;
+        }
+        th:first-child { z-index: 3; background-color: #2c2c2c; text-align: center; }
+        th { background-color: #2c2c2c; text-align: center; }
+        
+        .totals-row { font-weight: bold; background-color: #2a2a2a; }
+        .sobrante-row { font-weight: bold; color: var(--success-color); font-size: 1.1em; background-color: #1a1a1a; }
+        
+        /* Contenedor de checkboxes específicos */
+        #checkboxesQuincenas {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 15px;
+            background-color: #121212;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .chk-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 130px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Proyección Financiera (12 Meses)</h1>
+    
+    <div class="panel">
+        <h2>Ingresos y Ahorro Base</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Sueldo Neto Quincenal ($)</label>
+                <input type="number" id="sueldoInput" value="7211" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Ahorro Fijo Quincenal ($)</label>
+                <input type="number" id="ahorroInput" value="1666.67" step="0.01">
+            </div>
+            <div class="form-group" style="flex: 0.5;">
+                <button onclick="renderTable()" style="height: 100%;">Actualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Gestión de Datos</h2>
+        <div class="form-row">
+            <button onclick="exportarCSV()" style="flex: 1;">📥 Exportar a CSV</button>
+            <button onclick="document.getElementById('csvInput').click()" style="flex: 1;">📤 Importar CSV</button>
+            <input type="file" id="csvInput" accept=".csv" style="display:none;" onchange="importarCSV(event)">
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Agregar Movimiento</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Concepto</label>
+                <input type="text" id="conceptoInput" placeholder="Ej. Impresora">
+            </div>
+            <div class="form-group">
+                <label>Monto Total a Dividir ($)</label>
+                <input type="number" id="montoInput" placeholder="Ej. 3478" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Modalidad de Asignación</label>
+                <select id="tipoReparto" onchange="toggleReparto()">
+                    <option value="consecutivo">Consecutivo (Meses Sin Intereses)</option>
+                    <option value="especifico">Específico (Elegir quincenas exactas)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row" id="divConsecutivo">
+            <div class="form-group">
+                <label>¿En cuántas quincenas?</label>
+                <select id="quincenasInput">
+                    <option value="1">1 Quincena (Pago único)</option>
+                    <option value="2">2 Quincenas (1 Mes)</option>
+                    <option value="6">6 Quincenas (3 MSI Amex)</option>
+                    <option value="12">12 Quincenas (6 MSI)</option>
+                    <option value="18">18 Quincenas (9 MSI)</option>
+                    <option value="24">24 Quincenas (12 MSI)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>¿A partir de cuándo?</label>
+                <select id="inicioInput"></select>
+            </div>
+        </div>
+
+        <div class="form-group" id="divEspecifico" style="display:none; margin-bottom: 15px;">
+            <label>Selecciona las quincenas donde caerá el cobro:</label>
+            <div id="checkboxesQuincenas"></div>
+        </div>
+
+        <button onclick="agregarGasto()" style="width: 100%;">Registrar Gasto</button>
+    </div>
+
+    <div class="panel">
+        <h2>Flujo de Efectivo a 24 Quincenas</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr id="tableHeadRow">
+                        </tr>
+                </thead>
+                <tbody id="tablaBody">
+                    </tbody>
+                <tfoot id="tablaFoot">
+                    </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Generar calendario de 24 quincenas (Iniciando en 15 de Marzo 2026)
+    const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const quincenasNombres = [];
+    let mesActual = 2; // Índice 2 = Marzo
+    let anioActual = 2026;
+
+    for (let i = 0; i < 24; i++) {
+        let dia = (i % 2 === 0) ? "15" : "30";
+        if (dia === "30" && mesActual === 1) dia = (anioActual % 4 === 0) ? "29" : "28"; 
+        quincenasNombres.push(`Q${i+1}<br><small>${dia} ${meses[mesActual]} ${anioActual.toString().slice(-2)}</small>`);
+        
+        if (i % 2 !== 0) {
+            mesActual++;
+            if (mesActual > 11) {
+                mesActual = 0;
+                anioActual++;
+            }
+        }
+    }
+
+    // 2. Base de datos con soporte para quincenas específicas (Corrección de Mercadopago aplicada)
+    let gastos = [
+        { id: 1, concepto: "Amex (Compra anterior MSI)", montoTotal: 2739, quincenasActivas: [1, 2, 3, 4, 5, 6] },
+        { id: 2, concepto: "Mercadopago (Pago mensual)", montoTotal: 2493, quincenasActivas: [1, 3] }, // Solo cobra en Q1 y Q3
+        { id: 3, concepto: "Gasto extra (Efectivo)", montoTotal: 1000, quincenasActivas: [1] },
+        { id: 4, concepto: "Plata Card", montoTotal: 894, quincenasActivas: [2] },
+        { id: 5, concepto: "Amex Corte normal", montoTotal: 419, quincenasActivas: [2] }
+    ];
+
+    function formatearDinero(cantidad) {
+        return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(cantidad);
+    }
+
+    function toggleReparto() {
+        const tipo = document.getElementById('tipoReparto').value;
+        document.getElementById('divConsecutivo').style.display = tipo === 'consecutivo' ? 'flex' : 'none';
+        document.getElementById('divEspecifico').style.display = tipo === 'especifico' ? 'flex' : 'none';
+    }
+
+    function inicializarUI() {
+        const selectInicio = document.getElementById('inicioInput');
+        const divCheckboxes = document.getElementById('checkboxesQuincenas');
+        const theadRow = document.getElementById('tableHeadRow');
+
+        theadRow.innerHTML = '<th>Concepto / Quincena</th>';
+
+        quincenasNombres.forEach((nombreHtml, index) => {
+            let nombreLimpio = nombreHtml.replace('<br><small>', ' (').replace('</small>', ')');
+            
+            // Llenar Select
+            let opt = document.createElement('option');
+            opt.value = index + 1;
+            opt.textContent = nombreLimpio;
+            selectInicio.appendChild(opt);
+
+            // Llenar Checkboxes
+            let label = document.createElement('label');
+            label.className = 'chk-item';
+            label.innerHTML = `<input type="checkbox" class="chk-quincena" value="${index+1}"> <span>${nombreLimpio}</span>`;
+            divCheckboxes.appendChild(label);
+
+            // Llenar Cabeceras de Tabla
+            theadRow.innerHTML += `<th>${nombreHtml}</th>`;
+        });
+        
+        theadRow.innerHTML += '<th>Acción</th>';
+        renderTable();
+    }
+
+    function agregarGasto() {
+        const concepto = document.getElementById('conceptoInput').value;
+        const monto = parseFloat(document.getElementById('montoInput').value);
+        const tipo = document.getElementById('tipoReparto').value;
+
+        if (!concepto || isNaN(monto) || monto <= 0) {
+            alert("Ingresa un concepto y un monto válido.");
+            return;
+        }
+
+        let activas = [];
+
+        if (tipo === 'consecutivo') {
+            const duracion = parseInt(document.getElementById('quincenasInput').value);
+            const inicio = parseInt(document.getElementById('inicioInput').value);
+            for(let i = 0; i < duracion; i++) {
+                if (inicio + i <= 24) activas.push(inicio + i);
+            }
+        } else {
+            const checkboxes = document.querySelectorAll('.chk-quincena:checked');
+            checkboxes.forEach(cb => activas.push(parseInt(cb.value)));
+            
+            if (activas.length === 0) {
+                alert("Selecciona al menos una quincena en el panel de checkboxes.");
+                return;
+            }
+        }
+
+        gastos.push({
+            id: Date.now(),
+            concepto: concepto,
+            montoTotal: monto,
+            quincenasActivas: activas
+        });
+
+        // Limpiar formulario
+        document.getElementById('conceptoInput').value = '';
+        document.getElementById('montoInput').value = '';
+        document.querySelectorAll('.chk-quincena').forEach(cb => cb.checked = false);
+        
+        renderTable();
+    }
+
+    function eliminarGasto(id) {
+        gastos = gastos.filter(g => g.id !== id);
+        renderTable();
+    }
+
+    function exportarCSV() {
+        const sueldo = parseFloat(document.getElementById('sueldoInput').value) || 0;
+        const ahorro = parseFloat(document.getElementById('ahorroInput').value) || 0;
+        
+        // Encabezado con quincenas
+        let csv = 'Concepto / Quincena,' + quincenasNombres.map((q, i) => `Q${i+1}`).join(',') + '\n';
+        
+        // Ahorro Fijo
+        let filaAhorro = 'Ahorro Fijo';
+        for (let i = 0; i < 24; i++) {
+            filaAhorro += ',' + ahorro;
+        }
+        csv += filaAhorro + '\n';
+        
+        // Gastos
+        let totalesQuincena = Array(24).fill(ahorro);
+        
+        gastos.forEach(gasto => {
+            let fila = `${gasto.concepto}`;
+            let pagoPorQuincena = gasto.montoTotal / gasto.quincenasActivas.length;
+            
+            for (let i = 1; i <= 24; i++) {
+                if (gasto.quincenasActivas.includes(i)) {
+                    fila += ',' + pagoPorQuincena;
+                    totalesQuincena[i-1] += pagoPorQuincena;
+                } else {
+                    fila += ',0';
+                }
+            }
+            csv += fila + '\n';
+        });
+        
+        // Total Retenciones
+        let filaTotal = 'Total Retenciones';
+        for (let i = 0; i < 24; i++) {
+            filaTotal += ',' + totalesQuincena[i];
+        }
+        csv += filaTotal + '\n';
+        
+        // Sobrante Libre
+        let filaSobrante = 'Sobrante Libre';
+        for (let i = 0; i < 24; i++) {
+            filaSobrante += ',' + (sueldo - totalesQuincena[i]);
+        }
+        csv += filaSobrante + '\n';
+
+        // Descargar
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `plan_financiero_${new Date().toISOString().slice(0,10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function importarCSV(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const csv = e.target.result;
+                const lineas = csv.trim().split('\n');
+                
+                if (lineas.length < 3) {
+                    alert('Archivo CSV inválido');
+                    return;
+                }
+
+                // Parsear encabezado para obtener las columnas
+                const headerLinea = lineas[0].split(',');
+                const numQuincenas = headerLinea.length - 1;
+                
+                if (numQuincenas !== 24) {
+                    alert('El archivo debe contener exactamente 24 quincenas');
+                    return;
+                }
+
+                let gastosImportados = [];
+                let sueldoImportado = null;
+                let ahorroImportado = null;
+
+                for (let i = 1; i < lineas.length; i++) {
+                    const linea = lineas[i].trim();
+                    if (!linea) continue;
+
+                    const partes = linea.split(',');
+                    if (partes.length < 2) continue;
+
+                    const concepto = partes[0];
+                    const valores = partes.slice(1).map(v => parseFloat(v) || 0);
+
+                    if (concepto === 'Ahorro Fijo') {
+                        ahorroImportado = valores[0];
+                    } else if (concepto === 'Total Retenciones' || concepto === 'Sobrante Libre') {
+                        // Ignorar estas filas, se recalculan
+                        continue;
+                    } else {
+                        // Es un gasto: detectar en qué quincenas aplica
+                        let quincenasActivas = [];
+                        for (let q = 0; q < 24; q++) {
+                            if (valores[q] > 0) {
+                                quincenasActivas.push(q + 1);
+                            }
+                        }
+
+                        if (quincenasActivas.length > 0) {
+                            const montoTotal = valores.reduce((a, b) => a + b, 0);
+                            gastosImportados.push({
+                                id: Date.now() + Math.random(),
+                                concepto: concepto,
+                                montoTotal: montoTotal,
+                                quincenasActivas: quincenasActivas
+                            });
+                        }
+                    }
+                }
+
+                // Aplicar importación
+                if (ahorroImportado !== null) {
+                    document.getElementById('ahorroInput').value = ahorroImportado;
+                }
+                
+                gastos = gastosImportados;
+                renderTable();
+                
+                alert(`Se importaron ${gastosImportados.length} gastos correctamente.`);
+            } catch (error) {
+                alert('Error al procesar el archivo: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function eliminarGasto(id) {
+        gastos = gastos.filter(g => g.id !== id);
+        renderTable();
+    }
+
+    function renderTable() {
+        const sueldo = parseFloat(document.getElementById('sueldoInput').value) || 0;
+        const ahorro = parseFloat(document.getElementById('ahorroInput').value) || 0;
+        const tbody = document.getElementById('tablaBody');
+        const tfoot = document.getElementById('tablaFoot');
+        
+        tbody.innerHTML = '';
+        tfoot.innerHTML = '';
+
+        let totalesQuincena = Array(24).fill(0);
+
+        // Render Ahorro
+        let trAhorro = document.createElement('tr');
+        trAhorro.innerHTML = `<td><strong>Ahorro Fijo</strong></td>`;
+        for(let i=0; i<24; i++) {
+            trAhorro.innerHTML += `<td>${formatearDinero(ahorro)}</td>`;
+            totalesQuincena[i] += ahorro;
+        }
+        trAhorro.innerHTML += `<td>-</td>`;
+        tbody.appendChild(trAhorro);
+
+        // Render Gastos Dinámicos
+        gastos.forEach(gasto => {
+            let tr = document.createElement('tr');
+            tr.innerHTML = `<td>${gasto.concepto} <br><small style="color:#aaa;">(Total: ${formatearDinero(gasto.montoTotal)})</small></td>`;
+            
+            let pagoPorQuincena = gasto.montoTotal / gasto.quincenasActivas.length;
+
+            for (let i = 1; i <= 24; i++) {
+                if (gasto.quincenasActivas.includes(i)) {
+                    tr.innerHTML += `<td>${formatearDinero(pagoPorQuincena)}</td>`;
+                    totalesQuincena[i-1] += pagoPorQuincena;
+                } else {
+                    tr.innerHTML += `<td style="color:#444;">-</td>`;
+                }
+            }
+
+            tr.innerHTML += `<td><button class="delete-btn" onclick="eliminarGasto(${gasto.id})">X</button></td>`;
+            tbody.appendChild(tr);
+        });
+
+        // Render Totales
+        let trTotales = document.createElement('tr');
+        trTotales.className = 'totals-row';
+        trTotales.innerHTML = `<td>Total Retenciones</td>`;
+        for(let i=0; i<24; i++) {
+            trTotales.innerHTML += `<td>${formatearDinero(totalesQuincena[i])}</td>`;
+        }
+        trTotales.innerHTML += `<td></td>`;
+        tfoot.appendChild(trTotales);
+
+        // Render Sobrante
+        let trSobrante = document.createElement('tr');
+        trSobrante.className = 'sobrante-row';
+        trSobrante.innerHTML = `<td>Sobrante Libre</td>`;
+        for(let i=0; i<24; i++) {
+            let sobrante = sueldo - totalesQuincena[i];
+            trSobrante.innerHTML += `<td>${formatearDinero(sobrante)}</td>`;
+        }
+        trSobrante.innerHTML += `<td></td>`;
+        tfoot.appendChild(trSobrante);
+    }
+
+    // Arrancar la app
+    window.onload = inicializarUI;
+</script>
+</body>
+</html>
